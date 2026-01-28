@@ -1,0 +1,18 @@
+# Core LLM API clients
+openai>=2.16.0
+anthropic>=0.76.0
+google-generativeai>=0.8.0
+
+# Embeddings and Vector Search
+sentence-transformers>=5.2.0
+chromadb>=1.4.0
+
+# Utilities
+python-dotenv>=1.2.0
+numpy>=2.4.0
+tiktoken>=0.8.0
+
+# Scientific computing (required by sentence-transformers and chromadb)
+scipy>=1.17.0
+scikit-learn>=1.8.0
+torch>=2.10.0
