@@ -1,0 +1,78 @@
+# Data Analytics Practicum (Extended Multi-hour Sessions)
+
+This plan expands each “hour block” into multi-hour deep dives, deliberately progressing from SQL mastery to Python automation. Each section now spans multiple hours with additional advanced use cases, yet is still broken into bite-sized (5‑minute) activities for pacing. Adjust the time labels to match your scheduling needs (e.g., Hour 1 = 2-hour block, Hour 2 = 3‑4 hours, etc.).
+
+## Hours 1-2 – SQL Mastery & Advanced Metrics (2 hours)
+
+| Time  | Activity | Objective & Details | Prompt |
+|-------|----------|---------------------|--------|
+| 00-05 | Course overview + data architecture | Walk through `generate_test_data.py` + `load_all_data.sh`, review tables/columns/metadata. Emphasize injected anomalies (duplicates, missing fields, negative/future orders, session oddities). | `SHOW TABLES`, `DESCRIBE`, and summarize how `orders`, `order_items`, `customers`, and `sessions` relate, noting injected anomalies. |
+| 05-10 | Baseline metrics | Run `SELECT COUNT(*)` per table, use `EXPLAIN` to inspect join plans for large join between `orders` and `order_items`. | Generate SQL counting rows per table and an `EXPLAIN` of `orders` joined to `order_items` to highlight cardinality of the heavy join. |
+| 10-15 | Revenue by segment/channel with CTEs | Craft CTE that aggregates revenue before downstream filtering; add `GROUPING SETS` or `ROLLUP` for multi-view totals. | Write a CTE aggregating `order_total` by segment/channel and apply `GROUPING SETS` or `ROLLUP` to show roll-up subtotals. |
+| 15-20 | Trend analysis with window functions | Use `SUM(order_total) OVER (PARTITION BY segment ORDER BY order_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` to compute rolling 7-day revenue per segment. | Provide SQL using window functions to compute rolling 7-day revenue per segment with `ROWS BETWEEN 6 PRECEDING`. |
+| 20-25 | Customer lifetime series | Build query that ranks orders per customer (`ROW_NUMBER`) and calculates lifetime value (`SUM`). Discuss why partitions are necessary. | Draft SQL that ranks orders per customer, aggregates lifetime value, and explains why partitioning by `customer_id` matters. |
+| 25-30 | Session-to-order conversion w/ lateral joins | Use `LATERAL` or correlated subquery to match each session to the next order (ordered by timestamp). Compute conversion rate per device. | Compose SQL using `LATERAL`/correlated subqueries to link sessions to their next order, then calculate conversion rate by device. |
+| 30-35 | Anomaly profiling dashboard | Create materialized results (temporary tables) showing counts of negative orders, future-dated orders, invalid emails, zero-duration sessions. Introduce `UNION ALL` of different filters for a single summary table. | Build CTEs for each anomaly type (`negative_total`, `future_date`, `bad_email`, `zero_duration`) and `UNION ALL` them into a summary table with counts per issue. |
+| 35-40 | Ad-hoc drill: orders per payment method vs. segment | Use multi-column `GROUP BY`, compute `AVG(order_total)`, highlight combos with low/high averages. | Provide SQL grouping by `segment` and `payment_method`, computing average `order_total` and filtering for impactful combos (`HAVING COUNT(*) >= 5`). |
+| 40-45 | Explain data skew & performance | Demonstrate `ANALYZE TABLE`/`SHOW PROFILE` (if available) or simply run `EXPLAIN` + `FORMAT=JSON`. Talk about indexes. | Run `EXPLAIN FORMAT=JSON` on the heavy aggregation and describe what the plan tells you about skew and missing indexes. |
+| 45-50 | Derived dimension table | Use SQL to create `customer_segments` view that categorizes customers by average order_total (<100, 100-500, >500). | Create `CREATE OR REPLACE VIEW analytics_demo.customer_segments` that buckets each `customer_id` by their average spend. |
+| 50-55 | Field-level quality checks | Build `CASE` expressions for email format, segment nulls, negative totals; wrap into `SELECT` returning issue counts. | Write SQL that counts `missing_segment`, `invalid_email`, and `negative_total` issues using `UNION ALL` of filtered `SELECT`s. |
+| 55-60 | Compare SQL vs. pandas paradigms | Map each SQL concept to where you’ll repeat it in Python: e.g., window functions → `groupby().rolling()`, subqueries → chained merges. | Summarize each SQL construct (window, lateral joins, grouping) alongside the pandas method (`groupby().rolling`, `merge_asof`, etc.) that replicates it. |
+| 60-65 | Run weekly cohort analysis | Use `DATE_TRUNC`/`DATE_FORMAT` to group customers by signup week and compute retention (orders per cohort). | Build SQL grouping by signup week and order week using `DATE_FORMAT`, then count returning customers per cohort. |
+| 65-70 | Build KPI table | Create a `kpi_daily` table summarizing revenue, new customers, returning customers. | Provide `CREATE TABLE ... AS SELECT` that compiles daily revenue, new customer counts, and flagged negative orders. |
+| 70-75 | Diagnose anomalies w/ event sourcing | Create `WITH anomalies AS (...)` union, include explanation of how each anomaly type affects business. | Compose a `WITH anomalies AS (...)` CTE unioning negative totals, future dates, and invalid emails and explain the business impact per issue. |
+| 75-80 | Execute cleanup queries (preview) | Show `SELECT ... FOR UPDATE`/`UPDATE` statements that will fix bad rows later. | Write statements that lock sample bad rows with `SELECT ... FOR UPDATE`, update their status, and then roll back (showing intent). |
+| 80-85 | Capture artifacts | Save query text, explain to students how to document findings for the next block. | Describe steps to store query text and write short notes covering anomalies and decisions for the cleanse phase. |
+| 85-90 | Mini quiz | Ask team to list top 3 anomalies they found and the SQL used. | Provide prompt characterizing the mini quiz (e.g., “List top 3 anomalies + the SQL used to discover them”). |
+| 90-95 | Prepare for cleansing phase | Summarize insights & handoff to Hour 2. | Outline the cleanses you’ll target next, citing key anomalies and datasets. |
+| 95-120 | Extra labs (optional) | Encourage students to write their own subqueries (e.g., `orders` missing shipment date, sessions with device=unknown). Use remaining time for peer review. | Challenge them to write subqueries covering `orders` missing shipment dates and `sessions` with unknown devices, then peer-review each other’s SQL. |
+
+## Hours 3-6 – SQL Cleansing & Governance (3-4 hours)
+
+| Time  | Activity | Objective & Details | Prompt |
+|-------|----------|---------------------|--------|
+| 00-05 | Session goals | Explain what “data governance” means, list anomaly types targeted for cleaning (duplicate customers, bad orders, malformed sessions). | Prompt a governance overview listing targeted anomalies and their business impact. |
+| 05-10 | Build staging tables | Create temporary tables (`customers_stage`, `orders_stage`) using `CREATE TABLE AS` to hold normalized data. | Provide SQL to `CREATE TABLE ... AS` for staging normalized customer and order data. |
+| 10-15 | Deduplicate customers | Use `ROW_NUMBER` to keep the latest `signup_date`, remove duplicates by writing `DELETE` statements referencing CTE. | Write CTE with `ROW_NUMBER()` partitioned by `customer_id` and delete rows where the row number > 1, keeping the most recent. |
+| 15-20 | Normalize string fields | Use `TRIM`, `LOWER`, `REGEXP_REPLACE` to ensure consistent casing in names/emails. Show `SET` operations and `UPDATE`. | Compose `UPDATE` statements using `TRIM`, `LOWER`, and `REGEXP_REPLACE` to standardize names/emails. |
+| 20-25 | Email validation rules | Write SQL function or `CASE` expression that classifies emails: valid, missing `@`, domain invalid. Update `email_status`. | Provide `CASE` logic to classify emails and update an `email_status` column, optionally within a SQL function. |
+| 25-30 | Segment imputation | Use `COALESCE(segment, 'Unknown')` and `UPDATE` only the `NULL` rows. Show how to log these updates (insert into `audit_logs`). | Draft statements that `COALESCE(segment, 'Unknown')`, update nulls, and insert a row into `audit_logs` noting the change. |
+| 30-35 | Convert negative/future orders | Create new column `order_issue` populated when `order_total < 0 OR order_date > NOW()`. Showcase `ENUM` or text flag approach. | Add `order_issue` column using `ALTER TABLE` and populate it with text flags for negative totals and future dates via `UPDATE`. |
+| 35-40 | Session timing fixes | Add `session_duration` column, set it via `TIMESTAMPDIFF`, and `UPDATE` rows with negative durations. | Write SQL to add `session_duration`, compute it with `TIMESTAMPDIFF(SECOND, start_time, end_time)`, and flag negatives in a status column. |
+| 40-45 | Build clean views | Create views `customers_clean`, `orders_clean`, `sessions_clean` that wrap the cleaning logic without mutating base tables. | Provide `CREATE OR REPLACE VIEW` statements that expose the cleaned data for each entity. |
+| 45-50 | Backfill using `MERGE`/`INSERT ... ON DUPLICATE KEY` | Demonstrate how to sync cleansed data into production tables. | Show a `MERGE` or `INSERT ... ON DUPLICATE KEY UPDATE` that props staged rows into production tables idempotently. |
+| 50-55 | QA checks | Run counts for each issue type before and after cleaning, ensure targets met. Display results in simple report table. | Write SQL that compares counts of `negative_total`, `bad_email`, `null_segment` before and after cleaning. |
+| 55-60 | Governance policy doc | In README or shared doc, describe approval steps and rollback strategy. | Provide prose instructions for approvals, rollback steps, and documentation repositories (README/Docs). |
+| 60-90 | Deep dives | Let students take extra time to implement their own cleaning rule (e.g., standardize payment channels, split first/last names). | Challenge students to craft cleaning SQL for another column (like payment_channel standardization) and log their reasoning. |
+| 90-120 | Automation prep | Talk about scheduling these SQL scripts (via cron, Airflow). Export statements into `scripts/sql/cleaning.sql`. | Outline commands to schedule `scripts/sql/cleaning.sql` via cron or Airflow DAGs, including parameterized job definitions. |
+| 120-180 | Extended labs | Have groups pair to write SQL that replicates the cleanup in a different schema (simulate multi-tenant). Provide feedback. | Prompt them to duplicate cleanup in a new schema (e.g., `tenant_b`) using parameterized table names. |
+| 180-240 | Review + documentation | Require each team to present their cleaning story, SQL statements used, and validation outputs, tying back to the anomalies discovered earlier. | Guide teams to list the steps they took, show the pivotal SQL, and present before/after QA counts. |
+
+## Hours 7-12 – Python Exploration, Modeling & Automation (4-5 hours)
+
+| Time  | Activity | Objective & Details | Prompt |
+|-------|----------|---------------------|--------|
+| 00-05 | Hand off from SQL | Recap cleansing rules; outline how Python will deepen analysis (EDA, feature engineering, modeling). | Summarize the cleansing rules and describe how Python will extend profiling into automation. |
+| 05-10 | Environment bootstrapping | Ensure `pandas`, `sqlalchemy`, `scikit-learn`, `matplotlib` installed; demonstrate how to load data via `pandas.read_csv()` and optional `read_sql`. | Provide setup commands to install dependencies and sample `pandas.read_csv` and `read_sql` snippets connecting to MySQL. |
+| 10-15 | Data validation script | Build script `scripts/validate_data.py` that asserts counts, ensures no negative totals, and logs anomalies to CSV. | Draft the validation script structure: checks for row counts, negative totals, bad sessions, and logging anomalies to CSV. |
+| 15-20 | Merge & enrich data | Create pipeline: `orders → order_items → products`, add `customer_id` metadata, calculate order-level revenue. | Write pandas code merging `orders`, `order_items`, `products`, and adding revenue/metadata columns. |
+| 20-25 | Session merge | Combine session dataset with order info to compute conversion per session. Use `pd.merge_asof()` to align by timestamp. | Use `pd.merge_asof` to align sessions with subsequent orders and compute conversion rates per session. |
+| 25-30 | Feature engineering | Derive columns: `avg_order_value`, `days_since_signup`, `order_frequency`. Store them in `features.csv`. | Create pandas logic to engineer `avg_order_value`, `days_since_signup`, `order_frequency`, and export to `features.csv`. |
+| 30-35 | Visualization lab | Plot revenue distribution, anomaly counts, and session durations. Use `matplotlib` with subplots. | Provide plotting code that draws revenue distribution, anomalies, and session duration subplots with labels. |
+| 35-40 | Build anomaly classifier | Define target `is_bad_order`; select features, use `train_test_split`, `StandardScaler`, `LogisticRegression`. Document hyperparameters. | Show classifier pipeline with `train_test_split`, scaling, logistic regression, and mention key hyperparameters. |
+| 40-45 | Model explainability | Compute SHAP values or coefficients, interpret features driving anomalies. | Provide code for SHAP or coefficient output with commentary on important features. |
+| 45-50 | Advanced modeling (optional) | Swap logistic regression for tree-based classifier (`RandomForestClassifier`), compare metrics. | Describe switching to `RandomForestClassifier`, comparing accuracy/precision with the baseline. |
+| 50-55 | Batch scoring pipeline | Create script that reads new CSVs, applies cleaning rules, scores orders, and writes `predictions.csv`. | Outline a scoring script that loads new data, applies cleaning, scores orders, and writes to `predictions.csv`. |
+| 55-60 | Write back to MySQL | Use `SQLAlchemy` to append scores to `order_flags` table; demonstrate idempotent writes (`if_exists='replace'`). | Provide SQLAlchemy logic connecting to MySQL and writing scoring results to `order_flags` safely. |
+| 60-90 | Automation challenge | Students wrap all steps into CLI (argument parsing, logging, config file). Provide skeleton. | Prompt to build a CLI wrapper that parses args (input/output paths), loads config, and orchestrates validation, scoring, and logging. |
+| 90-120 | Integration testing | Run pipeline on a smaller subset, validate outputs against SQL queries. | Suggest integration tests running pipeline on a subset and comparing pandas outputs to SQL baselines (counts, revenue). |
+| 120-150 | Visualization dashboard | Use Plotly Dash or Streamlit to showcase flagged orders and key metrics; keep code modular. | Provide dashboard scaffolding (Dash or Streamlit) showing flagged orders, revenue, and anomaly KPIs. |
+| 150-180 | Team presentations | Each group demonstrates their version of the Python pipeline, highlighting insights and automation steps. | Remind teams to present their pipeline, highlight insights, and explain automation decisions with sample prompts. |
+
+## Supporting files & commands
+- `python3 scratches/data-analytics/generate_test_data.py` – regenerates data with anomalies baked in.
+- `./scratches/data-analytics/load_all_data.sh --user root --password "" --host 127.0.0.1 --port 3306` – full refresh/import.
+- `scripts/sql/` directory – to store SQL templates for profiling and cleaning (to be created in future steps).
+- `scripts/python/` directory – to store pandas/modeling scripts (to be created later).
+
+_Let me know which advanced activity you’d like me to implement first (e.g., SQL anomaly cleanup, Python batch scoring, dashboard). I can generate the SQL scripts or Python notebooks for that use case next._
